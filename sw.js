@@ -1,5 +1,5 @@
 // Caches the whole app so it opens and plays routines offline.
-const CACHE = 'daily-moves-v2';
+const CACHE = 'daily-moves-v3';
 const SHELL = ['./', 'index.html', 'figure.js', 'routines.js', 'app.js', 'manifest.webmanifest', 'apple-touch-icon.png', 'icon-192.png', 'icon-512.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL))); self.skipWaiting(); });
 self.addEventListener('activate', e => {

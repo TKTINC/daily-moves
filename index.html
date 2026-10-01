@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Daily Moves</title>
-<meta name="description" content="A weekly morning and evening movement routine with animated, voice-guided demos.">
+<meta name="description" content="A weekly morning and evening movement routine built from your saved reels.">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -148,7 +148,14 @@ ul.facts{margin:0;padding-left:20px;display:grid;gap:6px;font-size:15.5px}
 .lede{margin:0;color:var(--muted)}
 .muted{margin:0;color:var(--muted)}
 
-/* player */
+/* embedded reel */
+.player{display:grid;justify-items:center;gap:6px}
+.player iframe{width:100%;max-width:400px;border:0;border-radius:12px;background:var(--bg)}
+.player iframe.ig{aspect-ratio:10/19}
+.player iframe.fb{aspect-ratio:9/16;max-height:72vh}
+.player small{color:var(--muted);font-size:12.5px;text-align:center}
+
+/* animated player */
 .pl{display:grid;gap:12px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px}
 .plstage{position:relative;border-radius:12px;background:var(--bg);overflow:hidden}
 .plstage canvas{display:block;width:100%;aspect-ratio:4/3;max-height:46vh}

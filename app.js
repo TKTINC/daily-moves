@@ -80,9 +80,22 @@ const fmt=s=>`${Math.floor(s/60)}:${String(Math.max(0,Math.ceil(s%60))).padStart
 const secs=d=>d>=60?`${Math.round(d/60*10)/10} min`.replace('.0',''):`${d} s`;
 const CHECK='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
 
+/* The creator's original reel, played through Instagram's / Facebook's own embed player */
+const hasVideo=r=>r.src&&!r.src.removed;
+const platform=r=>/facebook/.test(r.src.url)?'Facebook':'Instagram';
+function embedSrc(r){
+  return platform(r)==='Facebook'
+    ? `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(r.src.url)}&show_text=false`
+    : r.src.url+'embed/';
+}
+function videoHTML(r){
+  return `<div class="player"><iframe class="${platform(r)==='Facebook'?'fb':'ig'}" src="${embedSrc(r)}" loading="lazy" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen title="${esc(r.t)} video by ${esc(r.src.by)}"></iframe>
+  <small>Video by ${esc(r.src.by)} on ${platform(r)}. Tap to play. If it shows only a picture, use “Open in ${platform(r)}”.</small></div>`;
+}
+const openVid=new Set();
 function credit(r){
-  if(r.src.removed) return `<div class="credit">Planned from your saved “${esc(r.src.lbl)}” reel, which has since been removed. This routine is original.</div>`;
-  return `<div class="credit">Original routine, inspired by the reel you saved (“${esc(r.src.lbl)}”) from ${esc(r.src.by)}. <a href="${r.src.url}" target="_blank" rel="noopener">View original ↗</a></div>`;
+  if(r.src.removed) return `<div class="credit">Your saved “${esc(r.src.lbl)}” reel has been removed from Instagram, so this routine uses the animated guide.</div>`;
+  return `<div class="credit">Video: ${esc(r.src.by)} · your note: “${esc(r.src.lbl)}”. The animated guide and tips are extras made for this app.</div>`;
 }
 function movesList(key,r){
   if(r.info) return `<ul class="facts">${r.facts.map(([h,t])=>`<li><b>${esc(h)}.</b> ${esc(t)}</li>`).join('')}</ul>`;
@@ -234,7 +247,8 @@ function stepCard(s,i,done,{inGuide=false}={}){
   if(s.kind==='yours') chips.unshift('<span class="pill">You already do this</span>');
   if(s.legSlot!=null) chips.unshift(`<span class="pill accent">Legs set ${s.legSlot+1} of 3</span>`);
   if(s.opt) chips.unshift('<span class="pill">Optional read</span>');
-  if(isR && !r.info) chips.push(`<span class="pill">Animated · voice guided</span>`);
+  if(isR && hasVideo(r)) chips.push(`<span class="pill">${platform(r)} video</span>`);
+  if(isR && !r.info) chips.push(`<span class="pill">Animated guide</span>`);
   return `<div class="card">
     <div class="head"><div class="ttl">${isR&&!inGuide?coverCanvas(s.key):''}<div><h3>${esc(r.t)}</h3>${isR?`<div class="by">${esc(r.cat)}</div>`:''}</div></div>
       ${inGuide?'':`<button class="check" data-check="${i}" aria-pressed="${!!done}" aria-label="Mark ${esc(r.t)} done">${CHECK}</button>`}</div>
@@ -242,9 +256,16 @@ function stepCard(s,i,done,{inGuide=false}={}){
     <p class="why">${esc(r.why)}</p>
     ${r.note?`<div class="note">${esc(r.note)}</div>`:''}
     ${isR?movesList(s.key,r):`<ul class="cues">${r.cues.map(c=>`<li>${esc(c)}</li>`).join('')}</ul>`}
-    ${isR&&!r.info&&!inGuide?`<div class="actions"><button class="btn primary" data-play="${s.key}">▶ Play routine</button></div>`:''}
+    ${isR&&!inGuide?cardActions(s.key,r):''}
     ${isR?credit(r):''}
   </div>`;
+}
+function cardActions(key,r){
+  const open=openVid.has(key);
+  return `${hasVideo(r)&&open?videoHTML(r):''}<div class="actions">
+    ${hasVideo(r)?`<button class="btn primary" data-video="${key}">${open?'Hide video':'▶ Watch video'}</button>`:''}
+    ${r.info?'':`<button class="btn ${hasVideo(r)?'':'primary'}" data-play="${key}">◐ Animated guide</button>`}
+    ${hasVideo(r)?`<a class="btn" href="${r.src.url}" target="_blank" rel="noopener">Open in ${platform(r)} ↗</a>`:''}</div>`;
 }
 function renderToday(){
   const day=PLAN[state.day], list=steps(state.day,state.sess), done=getDone(state.day,state.sess);
@@ -290,11 +311,11 @@ function whenUsed(key){
 function renderLibrary(){
   const cats=[...new Set(Object.values(RT).map(r=>r.cat))];
   const view=document.getElementById('view');
-  view.innerHTML=`<p class="lede">All ${Object.keys(RT).length} routines, grouped by what they do. Every one is animated and voice-guided, and works offline.</p>`+
+  view.innerHTML=`<p class="lede">All ${Object.keys(RT).length} routines, grouped by what they do. Each plays your saved video from its creator, with an animated, voice-guided version as backup.</p>`+
   cats.map(c=>`<section class="lib"><h2>${esc(c)}</h2><div class="libgrp">${Object.entries(RT).filter(([k,r])=>r.cat===c).map(([k,r])=>`
     <div class="libitem"><div class="head"><div class="ttl">${coverCanvas(k)}<div><h3>${esc(r.t)}</h3><div class="sched">${whenUsed(k)}</div></div></div><span class="pill">${r.m}′</span></div>
     ${movesList(k,r)}
-    ${r.info?'':`<div class="actions"><button class="btn primary" data-play="${k}">▶ Play routine</button></div>`}</div>`).join('')}</div></section>`).join('');
+    ${cardActions(k,r)}${credit(r)}</div>`).join('')}</div></section>`).join('');
   drawCovers(view);
 }
 
@@ -314,8 +335,8 @@ function renderGuide(){
     <li>Neck and hip work every evening, rotating so it stays fresh.</li>
     <li>Saturday teaches Surya Namaskar one pose at a time.</li></ul></section>
   <section><h2>Using the player</h2>
-    <p>Each routine plays as an animation with a timer. A voice coach names each move and its cue, tells you when to switch sides, and beeps for the last three seconds. Tap 🔊 to mute it. The screen stays awake while a routine plays.</p>
-    <p><b>Guided mode</b> walks you through the whole morning or evening and moves on by itself when each routine ends.</p></section>
+    <p>Every routine has your saved video. It also has an animated version with a timer. A voice coach names each move and its cue, tells you when to switch sides, and beeps for the last three seconds. Tap 🔊 to mute it. The screen stays awake while a routine plays.</p>
+    <p><b>Guided mode</b> walks you through the whole morning or evening, showing each video in turn. Switch any step to the animated guide and it moves on by itself when the routine ends.</p></section>
   <section><h2>Safety first</h2>
     <ul><li>Move within comfort. A mild stretch is fine; sharp pain means stop.</li>
     <li>Never hold your breath during effort. It spikes blood pressure.</li>
@@ -326,7 +347,7 @@ function renderGuide(){
     <ol><li>Open this app’s web address in <b>Safari</b>.</li><li>Tap <b>Share</b> (the square with an arrow).</li>
     <li>Choose <b>Add to Home Screen</b>, then <b>Add</b>.</li><li>Open it from the sunrise icon. It runs full screen and works offline.</li></ol></section>
   <section><h2>About the routines</h2>
-    <p>Every routine and animation here is original, built from standard exercises and classic yoga poses. Your saved reels set the purpose of each routine; each card credits the reel that inspired it and links to it, but nothing from the reels is copied or played inside the app.</p></section>
+    <p>Each routine plays the reel you saved, straight from its creator through Instagram’s or Facebook’s own player, credited on every card. The videos need internet. The animated, voice-guided versions and the tips are made for this app; they work offline and cover the one reel that has been removed.</p></section>
   </div>`;
 }
 
@@ -348,7 +369,7 @@ let G=null, tick=null, gPlayer=null;
 function startGuided(){
   const list=steps(state.day,state.sess), done=getDone(state.day,state.sess);
   let first=list.findIndex((s,i)=>!done[i]&&!s.opt); if(first<0)first=0;
-  G={list,i:first,phase:'step'}; unlockAudio(); keepAwake();
+  G={list,i:first,phase:'step',anim:false}; unlockAudio(); keepAwake();
   document.getElementById('guided').hidden=false; document.body.style.overflow='hidden'; renderGuided();
 }
 function closeGuided(){ clearInterval(tick); gPlayer?.destroy(); gPlayer=null; G=null; document.getElementById('guided').hidden=true; document.body.style.overflow=''; releaseAwake(); render(); }
@@ -381,16 +402,20 @@ function renderGuided(){
     el.querySelector('#gAdd').onclick=()=>{left+=15;dur+=15;};
     el.querySelector('#gSkip').onclick=()=>{G.phase='step';renderGuided();};
   } else {
-    const isPlay=s.kind==='routine'&&!s.r.info;
+    const isR=s.kind==='routine', vid=isR&&hasVideo(s.r), isPlay=isR&&!s.r.info&&(!vid||G.anim);
     const timerHTML = s.kind==='yours' ? `<div class="timer"><span class="big" id="tNum">${String(s.r.m).padStart(2,'0')}:00</span><button class="btn primary" id="tGo">Start timer</button></div>`:'';
     el.innerHTML=top+`<div class="gbody"><div class="wrap">
-      <h2>${esc(s.r.t)}</h2>${timerHTML}${isPlay?'<div id="gPlayer"></div>':''}${stepCard(s,G.i,false,{inGuide:true})}</div></div>
+      <h2>${esc(s.r.t)}</h2>${timerHTML}${vid&&!G.anim?videoHTML(s.r):''}${isPlay?'<div id="gPlayer"></div>':''}
+      ${vid&&!s.r.info?`<div class="actions"><button class="btn" id="gSwap">${G.anim?'▶ Show the video instead':'◐ Use the animated guide instead'}</button><a class="btn" href="${s.r.src.url}" target="_blank" rel="noopener">Open in ${platform(s.r)} ↗</a></div>`:''}
+      ${stepCard(s,G.i,false,{inGuide:true})}</div></div>
       <div class="gfoot"><button class="btn" id="gBack" ${G.i===0?'disabled':''}>← Back</button>
       <button class="startbtn" id="gNext">${G.i===n-1?'Finish ✓':(isPlay?'Skip · next →':'Done · next →')}</button></div>`;
-    if(isPlay) gPlayer=new Player(el.querySelector('#gPlayer'),s.key,{onDone:()=>setTimeout(()=>{ if(G&&G.list[G.i]===s) advanceGuided(); },2500)});
+    if(isPlay) gPlayer=new Player(el.querySelector('#gPlayer'),s.key,{onDone:()=>setTimeout(()=>{ if(G&&G.list[G.i]===s){ G.anim=false; advanceGuided(); } },2500)});
     if(s.kind==='yours') say(s.key==='walk'?'Time for your walk. Drink a glass of water first.':'Time for your pranayama. Sit tall and settle in.');
-    el.querySelector('#gBack').onclick=()=>{if(G.i>0){G.i--;G.phase='step';renderGuided();}};
-    el.querySelector('#gNext').onclick=advanceGuided;
+    el.querySelector('#gBack').onclick=()=>{if(G.i>0){G.i--;G.phase='step';G.anim=false;renderGuided();}};
+    el.querySelector('#gNext').onclick=()=>{G.anim=false;advanceGuided();};
+    const sw=el.querySelector('#gSwap'); if(sw) sw.onclick=()=>{G.anim=!G.anim;renderGuided();};
+    if(vid&&!G.anim) say(`${s.r.t}. Tap the video to play, and follow along.`);
     const tGo=el.querySelector('#tGo');
     if(tGo) tGo.onclick=()=>{ let left=s.r.m*60; tGo.disabled=true; tGo.textContent='Running';
       tick=setInterval(()=>{left--;const m=Math.floor(left/60),sec=left%60;document.getElementById('tNum').textContent=`${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
@@ -425,6 +450,7 @@ document.addEventListener('click',e=>{
   else if(t.dataset.check!=null){const i=+t.dataset.check,cur=!!getDone(state.day,state.sess)[i];setDone(state.day,state.sess,i,!cur);
     const s=steps(state.day,state.sess)[i]; if(s.legSlot!=null)setLeg(s.legSlot,!cur); render();}
   else if(t.dataset.play){openModal(t.dataset.play);}
+  else if(t.dataset.video){const k=t.dataset.video; openVid.has(k)?openVid.delete(k):openVid.add(k); render();}
   else if(t.dataset.leg!=null){const i=+t.dataset.leg;setLeg(i,!getLegs()[i]);render();}
   else if(t.dataset.goto!=null){state.day=+t.dataset.goto;state.tab='today';render();window.scrollTo(0,0);}
   else if(t.id==='startGuided'){startGuided();}
